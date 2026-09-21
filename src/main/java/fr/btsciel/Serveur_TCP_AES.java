@@ -1,17 +1,19 @@
 package fr.btsciel;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import aes.Aes_cbc;
+
+import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 
-public class Serveur_TCP_Base {
+public class Serveur_TCP_AES {
     private static final int PORT = 4444;
+    private static Aes_cbc aes;
 
     private static final String MESSAGE_ACCUEIL = """
             Envoyer une requête parmis celle-ci :
@@ -30,21 +32,31 @@ public class Serveur_TCP_Base {
             while (true) {
                 try {
                     Socket client = serveur.accept();
-                    BufferedReader entree = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                    PrintWriter sortie = new PrintWriter(client.getOutputStream(), true);
+                    OutputStream outS = client.getOutputStream();
+                    InputStream inS = client.getInputStream();
                     System.out.println("Connexion avec : " + client);
-                    sortie.println(MESSAGE_ACCUEIL);
-                    String messageRecu;
-                    while ((messageRecu = entree.readLine()) != null) {
-                        System.out.println("Message reçu : " + messageRecu);
-                        String message = messageRecu.trim();
-                        if(TraitementSwitch(message,client,sortie)){
-                            entree.close();
-                            sortie.close();
+                    aes = new Aes_cbc("mot de passe aes".getBytes(), "ici vecteur d'in".getBytes());
+                    outS.write(aes.cryptage(MESSAGE_ACCUEIL.getBytes(StandardCharsets.UTF_8)));
+                    byte[] bufferByte = new byte[65535];
+
+                    while (true) {
+                        int nblus = inS.read(bufferByte);
+                        if (nblus <= 0) break;
+                        String message;
+                        byte[] bufferByteTemps = Arrays.copyOf(bufferByte, nblus);
+                        message = new String(aes.decryptage(bufferByteTemps));
+                        System.out.println("Message reçu : " + message);
+                        message = message.trim();
+                        if (TraitementSwitch(message, client, outS)) {
+                            inS.close();
+                            outS.write(aes.cryptage("exit".getBytes(StandardCharsets.UTF_8)));
+                            outS.flush();
+                            outS.close();
                             client.close();
                             break;
                         }
                     }
+
                 } catch(IOException e){
                     System.err.println("Connexion interrompue, genre stopper finito pipo : " + e.getMessage());
                 }
@@ -52,43 +64,44 @@ public class Serveur_TCP_Base {
             }
     }
 
-    static boolean TraitementSwitch(String message, Socket client, PrintWriter sortie) throws IOException {
-        System.out.println("Message: " + message);
+    static boolean TraitementSwitch(String message, Socket client, OutputStream sortie) throws IOException {
+        System.out.println("Message Traiter: " + message);
         switch (message.toLowerCase()){
             case "fin","exit" ->
             {
                 message = "JE VOUS DECONNECTE bande de vilain !!!";
-                sortie.println(message);
+                sortie.write(aes.cryptage(message.getBytes(StandardCharsets.UTF_8)));
                 return true;
             }
             case "hello"-> {
                 message = "Bienvenue vous êtes bien connecté.";
-                sortie.println(message);
+                sortie.write(aes.cryptage(message.getBytes(StandardCharsets.UTF_8)));
             }
             case "time"-> {
                 LocalDateTime date = LocalDateTime.now();
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
-                sortie.println(formatter.format(date));
+                sortie.write(aes.cryptage((formatter.format(date).getBytes(StandardCharsets.UTF_8))));
             }
             case "you","whoareyou?"-> {
                 message = InetAddress.getLocalHost() + ":" + PORT;
-                sortie.println(message);
+                sortie.write(aes.cryptage((message.getBytes(StandardCharsets.UTF_8))));
             }
             case "me","whoami?"-> {
                 message = client.getRemoteSocketAddress().toString() ;
-                sortie.println(message);
+                sortie.write(aes.cryptage((message.getBytes(StandardCharsets.UTF_8))));
             }
             default -> {
                 try{
                     if(message.substring(0,4).equalsIgnoreCase("echo")){
                         message = message.substring(4);
-                        sortie.println(message);
+                        sortie.write(aes.cryptage((message.getBytes(StandardCharsets.UTF_8))));
                     }
                 }catch (Exception e){
 
                 }
             }
         }
+        sortie.flush();
         return false;
     }
 
