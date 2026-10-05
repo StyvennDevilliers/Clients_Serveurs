@@ -1,6 +1,6 @@
 package config;
 
-import com.astier.bts.client_tcp.modele.Config_AES;
+import modele.Config_AES;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 

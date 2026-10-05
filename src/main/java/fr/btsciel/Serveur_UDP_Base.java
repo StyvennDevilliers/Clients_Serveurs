@@ -6,10 +6,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class Serveur_UDP_Base {
-    private static final int PORT = 5000;
-    private static final int TAILLE_MAXIMALE = 512;
+    private final int PORT;
+    private final int TAILLE_MAXIMALE = 512;
 
-    public static void main(String[] args) {
+    public Serveur_UDP_Base(int port) {
+        this.PORT = port;
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
             System.out.println("Serveur UDP en fonctionnement sur le port " + PORT + ".");
 
